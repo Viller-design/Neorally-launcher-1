@@ -1,29 +1,69 @@
-
 /*
  * Zalith Launcher 2
- * Copyright (C) 2025-2026 MovTery and contributors
+ * Copyright (C) 2025-2026 MovTery <movtery228@qq.com> and contributors
  *
  * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published
- * by the Free Software Foundation, either version 3 of the License,
- * or (at your option) any later version.
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- * Unofficial modified Neorally Launcher build.
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See the GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/gpl-3.0.txt>.
  */
 
 package com.movtery.zalithlauncher.ui.screens.content
 
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
@@ -40,7 +80,11 @@ import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.unit.*
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.DpOffset
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.dp
 import androidx.constraintlayout.compose.ConstraintLayout
 import androidx.constraintlayout.compose.Dimension
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -72,6 +116,7 @@ import com.movtery.zalithlauncher.ui.screens.NormalNavKey
 import com.movtery.zalithlauncher.ui.screens.content.elements.CommonVersionInfoLayout
 import com.movtery.zalithlauncher.ui.screens.content.elements.PlayerFace
 import com.movtery.zalithlauncher.ui.screens.content.elements.VersionIconImage
+import com.movtery.zalithlauncher.ui.screens.content.home.CardIconShape
 import com.movtery.zalithlauncher.ui.screens.content.home.HomeGrid
 import com.movtery.zalithlauncher.ui.screens.content.home.LocalActionMenuDrag
 import com.movtery.zalithlauncher.ui.screens.content.home.actionMenuDragAnchor
@@ -85,35 +130,139 @@ import com.movtery.zalithlauncher.ui.screens.content.settings.layouts.rememberSe
 import com.movtery.zalithlauncher.viewmodel.ScreenBackStackViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlin.math.PI
+import kotlin.math.max
+import kotlin.math.roundToInt
+import kotlin.math.sin
+import kotlin.random.Random
 
 private const val ContentWeight = 7f
 private const val ActionMenuWeight = 3f
 
+/**
+ * 操作菜单停泊槽位与屏幕边缘的间距
+ */
 private val ActionMenuOuterPadding = 12.dp
 
-// NEORALLY PREMIUM COLORS
-private val NeonPurple = Color(0xFFAA55FF)
-private val NeonPink = Color(0xFFFF55CE)
-private val DeepBackground = Color(0xFF090713)
-private val CardBackground = Color(0xFF171025)
-private val SoftWhite = Color(0xFFF5EEFF)
+// === TEMA CRYOGENIC ===
+private val ThemeDarkBgStart = Color(0xFF0D0714)
+private val ThemeDarkBgMid = Color(0xFF1A0B2E)
+private val ThemeDarkBgEnd = Color(0xFF2A0D45)
+private val ThemeNeonPink = Color(0xFFE07AF7)
+private val ThemeNeonBlue = Color(0xFF7FDBFF)
+private val ThemePurple = Color(0xFF9C4DF4)
+private val ThemeGlassBg = Color(0xE61A1226)
+private val ThemeTextGray = Color(0xFFA89FAB)
 
-private val PremiumGradient = Brush.verticalGradient(
-    colors = listOf(
-        Color(0xFF090713),
-        Color(0xFF120B20),
-        Color(0xFF1A0D2B),
-        Color(0xFF090713)
-    )
-)
+/** Gradiente de marca usado em bordas e no botão de jogar */
+private val ThemeAccentBrush = Brush.linearGradient(listOf(ThemeNeonBlue, ThemePurple, ThemeNeonPink))
 
-private val NeonBorder = Brush.linearGradient(
-    colors = listOf(
-        NeonPurple.copy(alpha = 0.8f),
-        NeonPink.copy(alpha = 0.45f),
-        NeonPurple.copy(alpha = 0.15f)
+/** Estrelas fixas (posição relativa) para o fundo escuro */
+private class Star(val x: Float, val y: Float, val radius: Float, val phase: Float)
+
+private val BackgroundStars: List<Star> = run {
+    val rnd = Random(42)
+    List(70) {
+        Star(
+            x = rnd.nextFloat(),
+            y = rnd.nextFloat(),
+            radius = 0.6f + rnd.nextFloat() * 1.3f,
+            phase = rnd.nextFloat()
+        )
+    }
+}
+
+/**
+ * Fundo aurora: gradiente base + manchas de luz neon que flutuam devagar
+ * + estrelas que piscam (somente no tema escuro).
+ */
+@Composable
+private fun Modifier.auroraBackground(isDark: Boolean): Modifier {
+    val transition = rememberInfiniteTransition(label = "aurora")
+    val a by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(16000, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "auroraA"
     )
-)
+    val b by transition.animateFloat(
+        initialValue = 1f,
+        targetValue = 0f,
+        animationSpec = infiniteRepeatable(tween(22000, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "auroraB"
+    )
+    val twinkle by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(7000, easing = LinearEasing), RepeatMode.Restart),
+        label = "twinkle"
+    )
+
+    val base = if (isDark) {
+        Brush.linearGradient(listOf(ThemeDarkBgStart, ThemeDarkBgMid, ThemeDarkBgEnd))
+    } else {
+        Brush.verticalGradient(listOf(Color(0xFFF2FBFF), Color(0xFFCDEBF7)))
+    }
+    val strength = if (isDark) 1f else 0.55f
+
+    return this
+        .background(base)
+        .drawBehind {
+            val w = size.width
+            val h = size.height
+            val reach = max(w, h)
+
+            fun blob(color: Color, center: Offset, radius: Float, alpha: Float) {
+                drawRect(
+                    brush = Brush.radialGradient(
+                        colors = listOf(color.copy(alpha = alpha * strength), Color.Transparent),
+                        center = center,
+                        radius = radius
+                    )
+                )
+            }
+
+            blob(ThemeNeonPink, Offset(w * (0.10f + 0.30f * a), h * (0.15f + 0.35f * b)), reach * 0.55f, 0.28f)
+            blob(ThemeNeonBlue, Offset(w * (0.90f - 0.30f * b), h * (0.85f - 0.30f * a)), reach * 0.50f, 0.22f)
+            blob(ThemePurple, Offset(w * (0.50f + 0.20f * (a - b)), h * (0.50f + 0.15f * (b - a))), reach * 0.60f, 0.20f)
+
+            if (isDark) {
+                BackgroundStars.forEach { star ->
+                    val wave = sin(((twinkle + star.phase) * 2.0 * PI).toDouble()).toFloat()
+                    drawCircle(
+                        color = Color.White.copy(alpha = 0.15f + 0.45f * ((wave + 1f) / 2f)),
+                        radius = star.radius * density,
+                        center = Offset(star.x * w, star.y * h)
+                    )
+                }
+            }
+        }
+}
+
+/**
+ * Brilho pulsante atrás de um elemento circular (ex.: botão de jogar).
+ */
+@Composable
+private fun Modifier.pulseGlow(color: Color): Modifier {
+    val transition = rememberInfiniteTransition(label = "pulse")
+    val p by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(1800, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "pulseValue"
+    )
+    return this.drawBehind {
+        val glowRadius = (size.minDimension / 2f) * (1.5f + 0.5f * p)
+        drawCircle(
+            brush = Brush.radialGradient(
+                colors = listOf(color.copy(alpha = 0.60f - 0.30f * p), Color.Transparent),
+                center = center,
+                radius = glowRadius
+            ),
+            radius = glowRadius
+        )
+    }
+}
 
 @Composable
 fun LauncherScreen(
@@ -132,16 +281,12 @@ fun LauncherScreen(
         screenKey = NormalNavKey.LauncherMain,
         currentKey = backStackViewModel.mainScreen.currentKey
     ) { isVisible ->
-
         val isRtl = LocalLayoutDirection.current == LayoutDirection.Rtl
+        val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
         val dockedSide = LauncherSettings.launcherActionMenuSide.state
-
         val dragState = rememberActionMenuDragState(
-            onCommit = { side ->
-                LauncherSettings.launcherActionMenuSide.save(side)
-            }
+            onCommit = { side -> LauncherSettings.launcherActionMenuSide.save(side) }
         )
-
         dragState.dockedSide = dockedSide
         dragState.isRtl = isRtl
 
@@ -152,88 +297,39 @@ fun LauncherScreen(
         BoxWithConstraints(
             modifier = Modifier
                 .fillMaxSize()
-                .background(PremiumGradient)
-                .onGloballyPositioned {
-                    dragState.parentOrigin = it.positionInRoot()
+                .auroraBackground(isDark)
+                .onGloballyPositioned { coordinates ->
+                    dragState.parentOrigin = coordinates.positionInRoot()
                 }
         ) {
-
             val parentWidthPx = constraints.maxWidth.toFloat()
             dragState.parentWidthPx = parentWidthPx
-
-            dragState.outerPaddingPx =
-                with(LocalDensity.current) {
-                    ActionMenuOuterPadding.toPx()
-                }
-
-            dragState.menuSpanPx =
-                parentWidthPx * (ActionMenuWeight / (ActionMenuWeight + ContentWeight))
+            dragState.outerPaddingPx = with(LocalDensity.current) { ActionMenuOuterPadding.toPx() }
+            dragState.menuSpanPx = parentWidthPx * (ActionMenuWeight / (ActionMenuWeight + ContentWeight))
 
             val effectiveSide = dragState.previewSide ?: dockedSide
 
-            val cardWidth =
-                maxWidth * (ActionMenuWeight / (ActionMenuWeight + ContentWeight)) -
-                    ActionMenuOuterPadding
-
+            val cardWidth = maxWidth * (ActionMenuWeight / (ActionMenuWeight + ContentWeight)) - ActionMenuOuterPadding
             val cardHeight = maxHeight - ActionMenuOuterPadding * 2
-
-            // PURPLE LIGHTING
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .offset(x = 130.dp, y = (-130).dp)
-                    .size(360.dp)
-                    .background(
-                        Brush.radialGradient(
-                            listOf(
-                                NeonPurple.copy(alpha = 0.25f),
-                                NeonPurple.copy(alpha = 0.08f),
-                                Color.Transparent
-                            )
-                        ),
-                        CircleShape
-                    )
-            )
-
-            // PINK LIGHTING
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .offset(x = (-130).dp, y = 130.dp)
-                    .size(360.dp)
-                    .background(
-                        Brush.radialGradient(
-                            listOf(
-                                NeonPink.copy(alpha = 0.18f),
-                                NeonPink.copy(alpha = 0.05f),
-                                Color.Transparent
-                            )
-                        ),
-                        CircleShape
-                    )
-            )
 
             val toAccountManageScreen: () -> Unit = {
                 backStackViewModel.mainScreen.navigateTo(
                     screenKey = NormalNavKey.AccountManager(FirstLoginMenu.NONE)
                 )
             }
-
             val toVersionManageScreen: () -> Unit = {
                 backStackViewModel.mainScreen.removeAndNavigateTo(
                     remove = NestedNavKey.VersionSettings::class,
                     screenKey = NormalNavKey.VersionsManager
                 )
             }
-
             val toVersionSettingsScreen: () -> Unit = {
-                VersionsManager.currentVersion.value?.let {
-                    navigateToVersions(it)
+                VersionsManager.currentVersion.value?.let { version ->
+                    navigateToVersions(version)
                 }
             }
 
             Row(modifier = Modifier.fillMaxSize()) {
-
                 if (dockedSide == ActionMenuSide.START) {
                     Spacer(modifier = Modifier.weight(ActionMenuWeight))
                 }
@@ -252,14 +348,11 @@ fun LauncherScreen(
                                 holeShape = RectangleShape
                             )
                             .weight(ContentWeight)
-                            .offset {
-                                IntOffset(
-                                    x = dragState.previewShift.value.toInt(),
-                                    y = 0
-                                )
-                            },
+                            .offset { IntOffset(x = dragState.previewShift.value.roundToInt(), y = 0) },
                         isVisible = isVisible,
-                        onLaunchGame = onLaunchGame,
+                        onLaunchGame = { version ->
+                            onLaunchGame(version)
+                        },
                         onQuickPlayServer = onQuickPlayServer,
                         onOpenVersionSettings = navigateToVersions
                     )
@@ -274,22 +367,13 @@ fun LauncherScreen(
                 Box(
                     modifier = Modifier
                         .offset {
-                            val translation =
-                                if (dragState.floating) {
-                                    dragState.cardPosition
-                                } else {
-                                    dragState.landingOf(effectiveSide) +
-                                        dragState.settleOffset.value
-                                }
-
-                            val x =
-                                if (isRtl) {
-                                    parentWidthPx - cardWidth.toPx() - translation.x
-                                } else {
-                                    translation.x
-                                }
-
-                            IntOffset(x.toInt(), translation.y.toInt())
+                            val translation = if (dragState.floating) {
+                                dragState.cardPosition
+                            } else {
+                                dragState.landingOf(effectiveSide) + dragState.settleOffset.value
+                            }
+                            val x = if (isRtl) parentWidthPx - cardWidth.toPx() - translation.x else translation.x
+                            IntOffset(x.roundToInt(), translation.y.roundToInt())
                         }
                         .size(cardWidth, cardHeight)
                 ) {
@@ -298,10 +382,7 @@ fun LauncherScreen(
                         isVisible = isVisible,
                         dockedSide = dockedSide,
                         onLaunchGame = onLaunchGame,
-                        swapDirection =
-                            if (dockedSide == ActionMenuSide.END)
-                                AnimatedDirection.Right
-                            else AnimatedDirection.Left,
+                        swapDirection = if (dockedSide == ActionMenuSide.END) AnimatedDirection.Right else AnimatedDirection.Left,
                         pickUpScale = { dragState.scale },
                         toAccountManageScreen = toAccountManageScreen,
                         toVersionManageScreen = toVersionManageScreen,
@@ -319,25 +400,35 @@ fun LauncherScreen(
     }
 }
 
+/**
+ * Selo de "versão não oficial modificada" (exigido pela licença do Zalith Launcher 2)
+ */
 @Composable
 private fun UnofficialBadge(modifier: Modifier = Modifier) {
-    Text(
+    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    Row(
         modifier = modifier
             .background(
-                Color(0xDD171025),
-                CircleShape
+                color = if (isDark) Color(0xCC0B1F33) else Color(0xE6FFFFFF),
+                shape = CircleShape
             )
-            .border(
-                1.dp,
-                NeonBorder,
-                CircleShape
-            )
-            .padding(horizontal = 12.dp, vertical = 5.dp),
-        text = "NEORALLY  •  UNOFFICIAL BUILD",
-        style = MaterialTheme.typography.labelSmall,
-        color = Color(0xFFE4C5FF),
-        maxLines = 1
-    )
+            .border(1.dp, ThemeAccentBrush, CircleShape)
+            .padding(horizontal = 12.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(6.dp)
+                .background(ThemeNeonPink, CircleShape)
+        )
+        Text(
+            text = "Neorally Launcher · versão não oficial modificada do Zalith Launcher 2",
+            style = MaterialTheme.typography.labelSmall,
+            color = if (isDark) Color(0xFFBDEFFF) else Color(0xFF004A63),
+            maxLines = 1,
+        )
+    }
 }
 
 @Composable
@@ -378,13 +469,17 @@ private fun AccountAvatarRow(
     val account = account0
 
     Row(
-        modifier = modifier.padding(8.dp),
+        modifier = modifier.padding(all = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         if (account != null) {
+            // Avatar com anel neon em degradê
             PlayerFace(
-                modifier = Modifier.padding(start = 4.dp),
+                modifier = Modifier
+                    .padding(start = 4.dp)
+                    .border(1.5.dp, ThemeAccentBrush, CardIconShape)
+                    .padding(2.dp),
                 account = account,
                 avatarSize = avatarSize,
                 refreshKey = refreshKey
@@ -394,26 +489,25 @@ private fun AccountAvatarRow(
                 modifier = Modifier.size(placeholderSize),
                 painter = painterResource(R.drawable.ic_add),
                 contentDescription = null,
-                tint = NeonPurple
+                tint = ThemeNeonPink
             )
         }
 
         Column(
+            horizontalAlignment = Alignment.Start,
             verticalArrangement = Arrangement.spacedBy(textSpacer)
         ) {
             Text(
-                text = account?.username
-                    ?: stringResource(R.string.account_add_new_account),
+                text = account?.username ?: stringResource(R.string.account_add_new_account),
                 maxLines = 1,
                 style = MaterialTheme.typography.titleSmall,
-                color = SoftWhite
+                color = Color.White
             )
-
             if (account != null) {
                 Text(
                     text = getAccountTypeName(account),
                     style = MaterialTheme.typography.labelSmall,
-                    color = NeonPurple
+                    color = ThemeNeonBlue.copy(alpha = 0.85f)
                 )
             }
         }
@@ -429,20 +523,22 @@ private fun VersionListMenu(
     onLaunchGame: (Version?) -> Unit,
     onDismissRequest: () -> Unit,
 ) {
-    val bounds = menuAnchor?.boundsInParent()
-    val x = bounds?.left ?: 0f
-    val height = bounds?.height ?: 0f
+    val menuAnchorBounds = menuAnchor?.boundsInParent()
+    val menuAnchorX = menuAnchorBounds?.left ?: 0f
+    val menuAnchorHeight = menuAnchorBounds?.height ?: 0f
 
     DropdownMenu(
         expanded = show && menuAnchor != null && versions.isNotEmpty(),
         onDismissRequest = onDismissRequest,
-        modifier = Modifier.width(260.dp),
+        modifier = Modifier
+            .width(260.dp)
+            .background(ThemeGlassBg)
+            .border(1.dp, ThemeAccentBrush, MaterialTheme.shapes.extraLarge),
         offset = DpOffset(
-            x = with(LocalDensity.current) { x.toDp() },
-            y = with(LocalDensity.current) { (-height).toDp() } - 8.dp
+            x = with(LocalDensity.current) { menuAnchorX.toDp() },
+            y = with(LocalDensity.current) { (-menuAnchorHeight).toDp() } - 8.dp
         ),
-        shape = MaterialTheme.shapes.extraLarge,
-        containerColor = CardBackground
+        shape = MaterialTheme.shapes.extraLarge
     ) {
         versions.forEach { version0 ->
             DropdownMenuItem(
@@ -456,7 +552,6 @@ private fun VersionListMenu(
                             version = version0,
                             iconSize = 28.dp
                         )
-
                         IconButton(
                             onClick = {
                                 onLaunchGame(version0)
@@ -466,7 +561,7 @@ private fun VersionListMenu(
                             Icon(
                                 painter = painterResource(R.drawable.ic_play_arrow_filled),
                                 contentDescription = stringResource(R.string.main_launch_game),
-                                tint = NeonPink
+                                tint = ThemeNeonPink
                             )
                         }
                     }
@@ -490,13 +585,14 @@ private fun Modifier.versionLayout(
     .combinedClickable(
         role = Role.Button,
         onClick = swapToVersionManage,
-        onLongClick = requestOpenVersionList
+        onLongClick = requestOpenVersionList,
     )
     .guideNode(
         key = GuideKeys.Main.Step.VersionList,
         holeShape = RectangleShape,
-        preferSide = GuideSide.Above
+        preferSide = GuideSide.Above,
     )
+
 
 @Composable
 private fun VersionsContent(
@@ -507,12 +603,10 @@ private fun VersionsContent(
 ) {
     Row(
         modifier = modifier.height(IntrinsicSize.Max),
-        verticalAlignment = Alignment.CenterVertically
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         var showList by remember { mutableStateOf(false) }
-        var versionManagerRow by remember {
-            mutableStateOf<LayoutCoordinates?>(null)
-        }
+        var versionManagerRow by remember { mutableStateOf<LayoutCoordinates?>(null) }
 
         if (version == null) {
             Row(
@@ -520,20 +614,20 @@ private fun VersionsContent(
                     .fillMaxWidth()
                     .fillMaxHeight()
                     .clickable(onClick = toVersionManageScreen)
-                    .padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically
+                    .padding(all = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 MarqueeText(
                     modifier = Modifier.weight(1f),
                     text = stringResource(R.string.versions_manage_no_versions),
                     style = MaterialTheme.typography.labelMedium,
-                    color = SoftWhite
+                    color = Color.White
                 )
 
                 Icon(
                     painter = painterResource(R.drawable.ic_arrow_right_rounded),
-                    contentDescription = null,
-                    tint = NeonPurple
+                    contentDescription = stringResource(R.string.versions_manage_install_new),
+                    tint = ThemeNeonPink
                 )
             }
         } else {
@@ -541,7 +635,7 @@ private fun VersionsContent(
 
             Row(
                 modifier = Modifier.weight(1f),
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 VersionListMenu(
                     show = showList,
@@ -549,7 +643,7 @@ private fun VersionsContent(
                     menuAnchor = versionManagerRow,
                     version = version,
                     onLaunchGame = onLaunchGame,
-                    onDismissRequest = { showList = false }
+                    onDismissRequest = { showList = false },
                 )
 
                 Column(
@@ -558,39 +652,42 @@ private fun VersionsContent(
                         .fillMaxHeight()
                         .versionLayout(
                             swapToVersionManage = toVersionManageScreen,
-                            requestOpenVersionList = {
-                                showList = versions.isNotEmpty()
-                            }
+                            requestOpenVersionList = { showList = versions.isNotEmpty() }
                         )
                         .padding(horizontal = 8.dp, vertical = 12.dp)
-                        .onGloballyPositioned {
-                            versionManagerRow = it
+                        .onGloballyPositioned { coordinates ->
+                            versionManagerRow = coordinates
                         }
                 ) {
                     MarqueeText(
                         text = version.getVersionName(),
                         style = MaterialTheme.typography.labelMedium,
-                        color = SoftWhite
+                        color = Color.White
                     )
-
                     if (version.isValid()) {
                         MarqueeText(
                             text = version.getVersionSummary(),
                             style = MaterialTheme.typography.labelSmall,
-                            color = Color(0xFFBCA8D2)
+                            color = ThemeTextGray
                         )
                     }
                 }
             }
 
+            // Botão de jogar: círculo em degradê com brilho pulsante
             ScalingIconButton(
-                modifier = Modifier.padding(end = 8.dp),
-                onClick = { onLaunchGame(null) }
+                modifier = Modifier
+                    .padding(end = 8.dp)
+                    .pulseGlow(ThemeNeonPink)
+                    .background(ThemeAccentBrush, CircleShape),
+                onClick = {
+                    onLaunchGame(null)
+                }
             ) {
                 Icon(
                     painter = painterResource(R.drawable.ic_play_arrow_filled),
                     contentDescription = stringResource(R.string.main_launch_game),
-                    tint = NeonPink
+                    tint = Color.White,
                 )
             }
         }
@@ -606,28 +703,20 @@ private fun PetModelContent(
     val refreshWardrobe by AccountsManager.refreshWardrobe.collectAsStateWithLifecycle()
 
     val isRtl = LocalLayoutDirection.current == LayoutDirection.Rtl
-
     val yaw = Math.toRadians(
-        (if (dockedSide == ActionMenuSide.START) 35.0 else -35.0) *
-            (if (isRtl) -1 else 1)
+        ((if (dockedSide == ActionMenuSide.START) 35.0 else -(35.0)) * (if (isRtl) -1 else 1))
     ).toFloat()
 
     val armModel = account?.skinModelType?.toArmModel()
     val skinStamp = account?.getSkinFile()?.lastModified()
     val capeStamp = account?.getCapeFile()?.lastModified()
-
-    val skinBytes by produceState<ByteArray?>(
-        null, account, refreshWardrobe, skinStamp
-    ) {
+    val skinBytes by produceState<ByteArray?>(null, account, refreshWardrobe, skinStamp) {
         value = withContext(Dispatchers.IO) {
             account?.getSkinFile()?.takeIf { it.exists() }
                 ?.inputStream()?.use { it.readBytes() }
         }
     }
-
-    val capeBytes by produceState<ByteArray?>(
-        null, account, refreshWardrobe, capeStamp
-    ) {
+    val capeBytes by produceState<ByteArray?>(null, account, refreshWardrobe, capeStamp) {
         value = withContext(Dispatchers.IO) {
             account?.getCapeFile()?.takeIf { it.exists() }
                 ?.inputStream()?.use { it.readBytes() }
@@ -655,28 +744,46 @@ private fun ActionMenuContent(
     toVersionManageScreen: () -> Unit,
     toVersionSettingsScreen: () -> Unit,
 ) {
+    val panelShape = MaterialTheme.shapes.extraLarge
+
     ConstraintLayout(
         modifier = Modifier
             .actionMenuDragAnchor()
             .guideNode(
                 key = GuideKeys.Main.Step.CardDrag,
-                holeShape = MaterialTheme.shapes.extraLarge
+                holeShape = panelShape,
             )
             .then(modifier)
+            // Camada 1: vidro escuro translúcido
             .background(
                 brush = Brush.verticalGradient(
+                    colors = listOf(Color(0x66251040), Color(0xA60D0714))
+                ),
+                shape = panelShape,
+            )
+            // Camada 2: luz neon vinda de cima (atrás do pet)
+            .background(
+                brush = Brush.radialGradient(
                     colors = listOf(
-                        Color(0xEE251638),
-                        Color(0xF0191029),
-                        Color(0xF20C0918)
+                        ThemeNeonBlue.copy(alpha = 0.30f),
+                        ThemeNeonPink.copy(alpha = 0.15f),
+                        Color.Transparent
+                    ),
+                    radius = 900f
+                ),
+                shape = panelShape,
+            )
+            // Borda em degradê neon
+            .border(
+                width = 1.dp,
+                brush = Brush.linearGradient(
+                    listOf(
+                        ThemeNeonBlue.copy(alpha = 0.75f),
+                        ThemePurple.copy(alpha = 0.35f),
+                        ThemeNeonPink.copy(alpha = 0.75f)
                     )
                 ),
-                shape = MaterialTheme.shapes.extraLarge
-            )
-            .border(
-                1.dp,
-                NeonBorder,
-                MaterialTheme.shapes.extraLarge
+                shape = panelShape,
             )
     ) {
         val (versionLayout, petModel) = createRefs()
@@ -688,24 +795,23 @@ private fun ActionMenuContent(
                     start.linkTo(parent.start)
                     end.linkTo(parent.end)
                     top.linkTo(parent.top)
-                    bottom.linkTo(versionLayout.top)
+                    bottom.linkTo(anchor = versionLayout.top)
                     height = Dimension.fillToConstraints
                 },
-            dockedSide = dockedSide
+            dockedSide = dockedSide,
         )
 
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .constrainAs(versionLayout) {
-                    bottom.linkTo(parent.bottom)
+                    bottom.linkTo(anchor = parent.bottom)
                 },
-            verticalArrangement = Arrangement.spacedBy(5.dp)
+            verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
             val accShape = rememberSettingsCardShape(CardPosition.Top)
             val bottomShape = rememberSettingsCardShape(CardPosition.Bottom)
 
-            // ACCOUNT
             BackgroundCard(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -715,18 +821,17 @@ private fun ActionMenuContent(
                         preferSide = GuideSide.Below
                     ),
                 shape = accShape,
-                onClick = toAccountManageScreen
+                onClick = toAccountManageScreen,
             ) {
                 AccountAvatarRow(
                     modifier = Modifier.fillMaxWidth(),
                     avatarSize = 38.dp,
                     placeholderSize = 32.dp,
-                    textSpacer = 0.dp
+                    textSpacer = 0.dp,
                 )
             }
 
             val isRefreshing by VersionsManager.isRefreshing.collectAsStateWithLifecycle()
-
             if (isRefreshing) {
                 BackgroundCard(
                     modifier = Modifier
@@ -734,16 +839,16 @@ private fun ActionMenuContent(
                         .guideNode(
                             key = GuideKeys.Main.Step.VersionList,
                             holeShape = bottomShape,
-                            preferSide = GuideSide.Above
+                            preferSide = GuideSide.Above,
                         ),
-                    shape = bottomShape
+                    shape = rememberSettingsCardShape(CardPosition.Bottom),
                 ) {
                     LinearProgressIndicator(
                         modifier = Modifier
                             .padding(horizontal = 16.dp, vertical = 26.dp)
                             .fillMaxWidth(),
-                        color = NeonPink,
-                        trackColor = NeonPurple.copy(alpha = 0.2f)
+                        color = ThemeNeonPink,
+                        trackColor = ThemeNeonPink.copy(alpha = 0.2f)
                     )
                 }
             } else {
@@ -751,7 +856,7 @@ private fun ActionMenuContent(
                     modifier = Modifier
                         .height(IntrinsicSize.Min)
                         .fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(5.dp)
+                    horizontalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
                     val version0 by VersionsManager.currentVersion.collectAsStateWithLifecycle()
                     val version = version0
@@ -759,7 +864,7 @@ private fun ActionMenuContent(
                     version?.let {
                         BackgroundCard(
                             modifier = Modifier.fillMaxHeight(),
-                            shape = rememberSettingsCardShape(CardPosition.BottomStart)
+                            shape = rememberSettingsCardShape(CardPosition.BottomStart),
                         ) {
                             Box(
                                 modifier = Modifier
@@ -776,16 +881,14 @@ private fun ActionMenuContent(
                                         Icon(
                                             modifier = Modifier.size(16.dp),
                                             painter = painterResource(R.drawable.ic_settings_filled),
-                                            contentDescription = stringResource(
-                                                R.string.versions_manage_settings
-                                            ),
-                                            tint = NeonPurple
+                                            contentDescription = stringResource(R.string.versions_manage_settings),
+                                            tint = ThemeNeonPink
                                         )
                                     }
                                 ) {
                                     VersionIconImage(
                                         modifier = Modifier.fillMaxSize(),
-                                        version = version
+                                        version = version,
                                     )
                                 }
                             }
@@ -800,23 +903,21 @@ private fun ActionMenuContent(
                             bottomShape
                         } else {
                             rememberSettingsCardShape(CardPosition.BottomEnd)
-                        }
+                        },
                     ) {
                         VersionsContent(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .let {
-                                    if (version == null) {
-                                        it.guideNode(
-                                            key = GuideKeys.Main.Step.VersionList,
-                                            holeShape = bottomShape,
-                                            preferSide = GuideSide.Above
-                                        )
-                                    } else it
+                                    if (version == null) it.guideNode(
+                                        key = GuideKeys.Main.Step.VersionList,
+                                        holeShape = bottomShape,
+                                        preferSide = GuideSide.Above,
+                                    ) else it
                                 },
                             version = version,
                             onLaunchGame = onLaunchGame,
-                            toVersionManageScreen = toVersionManageScreen
+                            toVersionManageScreen = toVersionManageScreen,
                         )
                     }
                 }
@@ -851,6 +952,6 @@ private fun ActionMenu(
         onLaunchGame = onLaunchGame,
         toAccountManageScreen = toAccountManageScreen,
         toVersionManageScreen = toVersionManageScreen,
-        toVersionSettingsScreen = toVersionSettingsScreen
+        toVersionSettingsScreen = toVersionSettingsScreen,
     )
 }
