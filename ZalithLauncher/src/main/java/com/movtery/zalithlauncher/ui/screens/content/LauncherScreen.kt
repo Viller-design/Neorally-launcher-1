@@ -58,6 +58,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.boundsInParent
@@ -148,6 +149,7 @@ fun LauncherScreen(
         currentKey = backStackViewModel.mainScreen.currentKey
     ) { isVisible ->
         val isRtl = LocalLayoutDirection.current == LayoutDirection.Rtl
+        val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
         val dockedSide = LauncherSettings.launcherActionMenuSide.state
         val dragState = rememberActionMenuDragState(
             onCommit = { side -> LauncherSettings.launcherActionMenuSide.save(side) }
@@ -164,11 +166,10 @@ fun LauncherScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            Color.Transparent,
-                            MaterialTheme.colorScheme.primary.copy(alpha = 0.10f),
-                        )
+                    if (isDark) Brush.verticalGradient(
+                        colors = listOf(Color(0xFF041019), Color(0xFF0A2B3F), Color(0xFF061A27))
+                    ) else Brush.verticalGradient(
+                        colors = listOf(Color(0xFFF2FBFF), Color(0xFFCDEBF7))
                     )
                 )
                 .onGloballyPositioned { coordinates ->
@@ -273,7 +274,7 @@ fun LauncherScreen(
             UnofficialBadge(
                 modifier = Modifier
                     .align(Alignment.BottomStart)
-                    .padding(start = 16.dp, bottom = 6.dp)
+                    .padding(start = 16.dp, bottom = 8.dp)
             )
         }
     }
@@ -284,14 +285,18 @@ fun LauncherScreen(
  */
 @Composable
 private fun UnofficialBadge(modifier: Modifier = Modifier) {
+    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     Text(
         modifier = modifier
-            .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.85f), CircleShape)
-            .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f), CircleShape)
+            .background(
+                color = if (isDark) Color(0xCC0B3346) else Color(0xE6FFFFFF),
+                shape = CircleShape
+            )
+            .border(1.dp, Color(0xFF7FDBFF).copy(alpha = 0.6f), CircleShape)
             .padding(horizontal = 12.dp, vertical = 4.dp),
         text = "Neorally Launcher · versão não oficial modificada do Zalith Launcher 2",
         style = MaterialTheme.typography.labelSmall,
-        color = MaterialTheme.colorScheme.onPrimaryContainer,
+        color = if (isDark) Color(0xFFBDEFFF) else Color(0xFF004A63),
         maxLines = 1,
     )
 }
@@ -537,7 +542,7 @@ private fun VersionsContent(
                 Icon(
                     painter = painterResource(R.drawable.ic_play_arrow_filled),
                     contentDescription = stringResource(R.string.main_launch_game),
-                    tint = MaterialTheme.colorScheme.primary,
+                    tint = Color(0xFF7FDBFF),
                 )
             }
         }
@@ -604,11 +609,9 @@ private fun ActionMenuContent(
             )
             .then(modifier)
             .background(
-                brush = Brush.verticalGradient(
-                    colors = listOf(
-                        MaterialTheme.colorScheme.primary.copy(alpha = 0.16f),
-                        Color.Transparent,
-                    )
+                brush = Brush.radialGradient(
+                    colors = listOf(Color(0x5A7FDBFF), Color(0x00000000)),
+                    radius = 900f
                 ),
                 shape = MaterialTheme.shapes.extraLarge,
             )
