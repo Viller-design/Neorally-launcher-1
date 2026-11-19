@@ -1,3 +1,4 @@
+
 /*
  * Zalith Launcher 2
  * Copyright (C) 2025-2026 MovTery <movtery228@qq.com> and contributors
@@ -13,7 +14,7 @@
  * See the GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/gpl-3.0.txt>.
+ * along with this program. If not, see <https://www.gnu.org/licenses/gpl-3.0.txt>.
  */
 
 package com.movtery.zalithlauncher.ui.screens.main
@@ -27,6 +28,13 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -61,9 +69,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -125,6 +136,7 @@ import com.movtery.zalithlauncher.viewmodel.ModpackImportViewModel
 import com.movtery.zalithlauncher.viewmodel.ScreenBackStackViewModel
 import com.movtery.zalithlauncher.viewmodel.sendKeepScreen
 import com.movtery.zalithlauncher.viewmodel.sendToast
+import kotlin.random.Random
 
 @Composable
 fun MainScreen(
@@ -134,8 +146,8 @@ fun MainScreen(
     modifyVersionViewModel: ModifyVersionViewModel,
     submitError: (ErrorViewModel.ThrowableMessage) -> Unit
 ) {
-    //监控当前是否有任务正在进行
     var taskRunning by remember { mutableStateOf(true) }
+
     LaunchedEffect(Unit) {
         TaskSystem.tasksFlow.collect { tasks ->
             val noTasks = tasks.isEmpty()
@@ -150,7 +162,6 @@ fun MainScreen(
         LauncherSettings.launcherTaskMenuExpanded.save(!isTaskMenuExpanded)
     }
 
-    /** 回到主页面通用函数 */
     val toMainScreen: () -> Unit = {
         screenBackStackModel.mainScreen.clearWith(NormalNavKey.LauncherMain)
     }
@@ -159,11 +170,14 @@ fun MainScreen(
     val inLauncherScreen = mainScreenKey == null || mainScreenKey is NormalNavKey.LauncherMain
 
     val isBackgroundValid = LocalBackgroundViewModel.current?.isValid == true
-    val launcherBackgroundOpacity = LauncherSettings.launcherBackgroundOpacity.state.toFloat() / 100f
+    val launcherBackgroundOpacity =
+        LauncherSettings.launcherBackgroundOpacity.state.toFloat() / 100f
 
     val backgroundColor = if (isBackgroundValid) {
         backgroundColor().copy(alpha = launcherBackgroundOpacity)
-    } else backgroundColor()
+    } else {
+        backgroundColor()
+    }
 
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -171,8 +185,7 @@ fun MainScreen(
         contentColor = onBackgroundColor()
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxSize()
+            modifier = Modifier.fillMaxSize()
         ) {
             TopBar(
                 modifier = Modifier
@@ -211,7 +224,7 @@ fun MainScreen(
                 },
                 changeExpandedState = {
                     changeTasksExpandedState()
-                },
+                }
             )
 
             Box(
@@ -241,13 +254,19 @@ fun MainScreen(
                 ) {
                     changeTasksExpandedState()
                 }
+
+                if (inLauncherScreen) {
+                    FallingStarsOverlay(
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
             }
         }
     }
 }
 
 @Composable
-private fun <E: TitledNavKey> TopBar(
+private fun <E : TitledNavKey> TopBar(
     mainScreenKey: E?,
     inLauncherScreen: Boolean,
     taskRunning: Boolean,
@@ -260,7 +279,7 @@ private fun <E: TitledNavKey> TopBar(
     toDownloadScreen: () -> Unit,
     toMultiplayerScreen: () -> Unit,
     openFileManager: () -> Unit,
-    changeExpandedState: () -> Unit,
+    changeExpandedState: () -> Unit
 ) {
     val festivals = LocalFestivals.current
 
@@ -274,7 +293,8 @@ private fun <E: TitledNavKey> TopBar(
         ConstraintLayout(modifier = modifier) {
             val (backCenter, title, endButtons) = createRefs()
 
-            val backDispatcher = LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
+            val backDispatcher =
+                LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
 
             Row(
                 modifier = Modifier
@@ -295,7 +315,6 @@ private fun <E: TitledNavKey> TopBar(
                             modifier = Modifier.fillMaxHeight(),
                             onClick = {
                                 if (!inLauncherScreen) {
-                                    //不在主屏幕时才允许返回
                                     backDispatcher?.onBackPressed() ?: run {
                                         onScreenBack()
                                     }
@@ -313,7 +332,6 @@ private fun <E: TitledNavKey> TopBar(
                             modifier = Modifier.fillMaxHeight(),
                             onClick = {
                                 if (!inLauncherScreen) {
-                                    //不在主屏幕时才允许回到主页面
                                     toMainScreen()
                                 }
                             }
@@ -326,6 +344,7 @@ private fun <E: TitledNavKey> TopBar(
                     }
                 }
             }
+
             val parentRes = mainScreenKey?.title
             val childRes = (mainScreenKey as? BackStackNavKey<*>)?.currentKey?.title
 
@@ -423,7 +442,7 @@ private fun <E: TitledNavKey> TopBar(
                     text = stringResource(R.string.terracotta),
                     onClick = {
                         if (!inMultiplayerScreen) toMultiplayerScreen()
-                    },
+                    }
                 )
 
                 TopBarRailItem(
@@ -432,7 +451,7 @@ private fun <E: TitledNavKey> TopBar(
                     text = stringResource(R.string.generic_download),
                     onClick = {
                         if (!inDownloadScreen) toDownloadScreen()
-                    },
+                    }
                 )
 
                 TopBarRailItem(
@@ -441,7 +460,7 @@ private fun <E: TitledNavKey> TopBar(
                     text = stringResource(R.string.generic_setting),
                     onClick = {
                         if (!inSettingsScreen) toSettingsScreen()
-                    },
+                    }
                 )
             }
         }
@@ -479,7 +498,7 @@ private fun TopBarRailItem(
         },
         selected = selected,
         selectedPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
-        unSelectedPadding = PaddingValues(all = 8.dp),
+        unSelectedPadding = PaddingValues(all = 8.dp)
     )
 }
 
@@ -501,14 +520,13 @@ private fun NavigationUI(
     }
 
     if (backStack.isNotEmpty()) {
-        /** 导航至版本详细信息屏幕 */
         val navigateToVersions: (Version) -> Unit = { version ->
             screenBackStackModel.mainScreen.navigateTo(
                 screenKey = NestedNavKey.VersionSettings(version),
                 useClassEquality = true
             )
         }
-        /** 导航至整合包导出屏幕 */
+
         val navigateToExport: (Version) -> Unit = { version ->
             screenBackStackModel.mainScreen.removeAndNavigateTo(
                 remove = NestedNavKey.VersionSettings::class,
@@ -537,14 +555,21 @@ private fun NavigationUI(
                             )
                         },
                         onQuickPlayServer = { version, address ->
-                            val target = (version ?: VersionsManager.currentVersion.value)?.takeIf { it.isValid() }
+                            val target =
+                                (version ?: VersionsManager.currentVersion.value)
+                                    ?.takeIf { it.isValid() }
+
                             if (target != null) {
                                 eventViewModel.sendEvent(
                                     EventViewModel.Event.Launch.PlayServer(target, address)
                                 )
                             } else {
-                                eventViewModel.sendToast(androidText(R.string.game_launch_no_version))
-                                screenBackStackModel.mainScreen.navigateTo(NormalNavKey.VersionsManager)
+                                eventViewModel.sendToast(
+                                    androidText(R.string.game_launch_no_version)
+                                )
+                                screenBackStackModel.mainScreen.navigateTo(
+                                    NormalNavKey.VersionsManager
+                                )
                             }
                         },
                         onOpenLink = {
@@ -555,6 +580,7 @@ private fun NavigationUI(
                         }
                     )
                 }
+
                 entry<NestedNavKey.Settings> { key ->
                     SettingsScreen(
                         key = key,
@@ -566,12 +592,14 @@ private fun NavigationUI(
                         submitError = submitError
                     )
                 }
+
                 entry<NormalNavKey.License> { key ->
                     LicenseScreen(
                         key = key,
                         backStackViewModel = screenBackStackModel
                     )
                 }
+
                 entry<NormalNavKey.AccountManager> { key ->
                     AccountManageScreen(
                         key = key,
@@ -584,6 +612,7 @@ private fun NavigationUI(
                         submitError = submitError
                     )
                 }
+
                 entry<NormalNavKey.WebScreen> { key ->
                     WebViewScreen(
                         key = key,
@@ -591,6 +620,7 @@ private fun NavigationUI(
                         eventViewModel = eventViewModel
                     )
                 }
+
                 entry<NormalNavKey.VersionsManager> {
                     VersionsManageScreen(
                         backScreenViewModel = screenBackStackModel,
@@ -600,6 +630,7 @@ private fun NavigationUI(
                         submitError = submitError
                     )
                 }
+
                 entry<NormalNavKey.FileSelector> { key ->
                     FileSelectorScreen(
                         key = key,
@@ -608,6 +639,7 @@ private fun NavigationUI(
                         backStack.removeLastOrNull()
                     }
                 }
+
                 entry<NestedNavKey.VersionSettings> { key ->
                     VersionSettingsScreen(
                         key = key,
@@ -621,6 +653,7 @@ private fun NavigationUI(
                         submitError = submitError
                     )
                 }
+
                 entry<NestedNavKey.VersionExport> { key ->
                     VersionExportScreen(
                         key = key,
@@ -629,6 +662,7 @@ private fun NavigationUI(
                         backToMainScreen = toMainScreen
                     )
                 }
+
                 entry<NestedNavKey.Download> { key ->
                     DownloadScreen(
                         key = key,
@@ -638,25 +672,28 @@ private fun NavigationUI(
                         submitError = submitError
                     )
                 }
+
                 entry<NestedNavKey.AddonInfo> { key ->
                     AddonInfoScreen(
                         key = key,
                         mainScreenKey = screenBackStackModel.mainScreen.currentKey,
                         addonInfoScreenKey = key.currentKey,
                         eventViewModel = eventViewModel,
-                        submitError = submitError,
+                        submitError = submitError
                     )
                 }
+
                 entry<NormalNavKey.Multiplayer> {
                     MultiplayerScreen(
                         backScreenViewModel = screenBackStackModel,
                         eventViewModel = eventViewModel
                     )
                 }
+
                 entry<NormalNavKey.LogView> { key ->
                     LogViewScreen(
                         key = key,
-                        backStackViewModel = screenBackStackModel,
+                        backStackViewModel = screenBackStackModel
                     )
                 }
             }
@@ -676,6 +713,7 @@ private fun TaskMenu(
     val show = isExpanded && tasks.isNotEmpty()
 
     val isRtl = LocalLayoutDirection.current == LayoutDirection.Rtl
+
     AnimatedVisibility(
         modifier = modifier,
         enter = slideInHorizontally(
@@ -747,7 +785,6 @@ private fun TaskMenu(
                                 .fillMaxWidth()
                                 .padding(vertical = 6.dp)
                         ) {
-                            //取消任务
                             TaskSystem.cancelTask(task.id)
                         }
                     }
@@ -772,7 +809,7 @@ private fun TaskItem(
         modifier = modifier,
         shape = shape,
         color = color,
-        contentColor = contentColor,
+        contentColor = contentColor
     ) {
         Row(
             modifier = Modifier.padding(all = 8.dp),
@@ -803,7 +840,7 @@ private fun TaskItem(
                     )
                 }
 
-                if (taskProgress < 0) { //负数则代表不确定
+                if (taskProgress < 0) {
                     LinearProgressIndicator(
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -825,8 +862,11 @@ private fun TaskItem(
                             style = MaterialTheme.typography.labelMedium
                         )
                     }
+
                     rateBytesPerSec?.let { bytes ->
-                        val text = remember(bytes) { "${formatFileSize(bytes)}/s" }
+                        val text = remember(bytes) {
+                            "${formatFileSize(bytes)}/s"
+                        }
                         Text(
                             text = text,
                             style = MaterialTheme.typography.labelMedium
@@ -834,6 +874,86 @@ private fun TaskItem(
                     }
                 }
             }
+        }
+    }
+}
+
+/*
+ * NeoRally - Falling Stars Effect
+ */
+
+private data class FallingStar(
+    val x: Float,
+    val startY: Float,
+    val speed: Float,
+    val radius: Float,
+    val alpha: Float
+)
+
+@Composable
+private fun FallingStarsOverlay(
+    modifier: Modifier = Modifier
+) {
+    val transition = rememberInfiniteTransition(
+        label = "falling_stars"
+    )
+
+    val progress by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(
+                durationMillis = 9000,
+                easing = LinearEasing
+            ),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "star_progress"
+    )
+
+    val density = LocalDensity.current.density
+
+    val stars = remember {
+        List(42) {
+            FallingStar(
+                x = Random.nextFloat(),
+                startY = Random.nextFloat(),
+                speed = 0.35f + Random.nextFloat() * 0.75f,
+                radius = 1.2f + Random.nextFloat() * 1.3f,
+                alpha = 0.25f + Random.nextFloat() * 0.65f
+            )
+        }
+    }
+
+    Canvas(modifier = modifier) {
+        stars.forEach { star ->
+            val x = star.x * size.width
+            val y = (
+                (star.startY + progress * star.speed) % 1.08f
+            ) * size.height
+
+            val radius = star.radius * density
+
+            drawLine(
+                color = Color(0xFFB77AFF).copy(
+                    alpha = star.alpha * 0.45f
+                ),
+                start = Offset(x, y),
+                end = Offset(
+                    x - radius * 1.8f,
+                    y - radius * 4f
+                ),
+                strokeWidth = radius * 0.65f,
+                cap = StrokeCap.Round
+            )
+
+            drawCircle(
+                color = Color(0xFFEAD9FF).copy(
+                    alpha = star.alpha
+                ),
+                radius = radius,
+                center = Offset(x, y)
+            )
         }
     }
 }
