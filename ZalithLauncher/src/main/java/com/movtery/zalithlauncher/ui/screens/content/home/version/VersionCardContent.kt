@@ -1,3 +1,4 @@
+
 /*
  * Zalith Launcher 2
  * Copyright (C) 2025-2026 MovTery <movtery228@qq.com> and contributors
@@ -13,12 +14,14 @@
  * See the GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/gpl-3.0.txt>.
+ * along with this program. If not, see <https://www.gnu.org/licenses/gpl-3.0.txt>.
  */
 
 package com.movtery.zalithlauncher.ui.screens.content.home.version
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
+import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
@@ -34,7 +37,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -48,11 +53,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.awaitPointerEvent
+import androidx.compose.ui.input.pointer.consume
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -67,21 +77,41 @@ import com.movtery.zalithlauncher.game.version.installed.Version
 import com.movtery.zalithlauncher.ui.components.LittleTextLabel
 import com.movtery.zalithlauncher.ui.screens.content.elements.VersionIconImage
 import com.movtery.zalithlauncher.ui.screens.content.home.CardIconShape
+import kotlinx.coroutines.withTimeoutOrNull
 
-/** 版本卡片启动回调 */
+/** NeoRally Glass palette */
+private val NeoPurple = Color(0xFF9B55F5)
+private val NeoPink = Color(0xFFEC72D7)
+private val NeoBlue = Color(0xFF8CDAFF)
+private val NeoText = Color(0xFFF8F2FF)
+private val NeoMutedText = Color(0xFFC3B4D5)
+private val NeoGlassTop = Color(0xB827183A)
+private val NeoGlassBottom = Color(0xD9120C20)
+
+private val NeoAccentBrush = Brush.linearGradient(
+    colors = listOf(
+        NeoBlue.copy(alpha = 0.9f),
+        NeoPurple,
+        NeoPink.copy(alpha = 0.95f)
+    )
+)
+
+private val NeoCardShape = RoundedCornerShape(20.dp)
+private val NeoButtonShape = RoundedCornerShape(13.dp)
+
+/** Version card launch callback */
 val LocalHomeCardLauncher = staticCompositionLocalOf<(Version) -> Unit> { {} }
-/** 版本卡片打开版本设置屏的回调 */
+
+/** Version card settings callback */
 val LocalHomeCardVersionSettings = staticCompositionLocalOf<(Version) -> Unit> { {} }
 
-/** 版本描述移入头行下方空白区的高度跨度 */
+/** Version description layout */
 private const val DESCRIPTION_START_SPAN = 9
-/** 头行与图标下方描述文本之间的间距 */
 private val DetailTopGap = 4.dp
-/** 详情文本行之间的间距 */
 private val DetailItemGap = 2.dp
 
 /**
- * 版本卡片内容
+ * NeoRally version card.
  */
 @Composable
 fun CardState.VersionCardContent(cardId: String) {
@@ -89,14 +119,13 @@ fun CardState.VersionCardContent(cardId: String) {
     val card = remember(states, cardId) {
         states.firstOrNull { it.record.cardId == cardId }
     }
+
     val version = (card?.status as? VersionCardStatus.Available)?.version
     val onOpenSettings = LocalHomeCardVersionSettings.current
 
-    //点按手势不持有指针事件，交互状态与版本实例在回调触发时读取即时值
     val currentVersion by rememberUpdatedState(version)
     val currentInteraction by rememberUpdatedState(interaction)
 
-    //版本详细信息的显示门槛
     val showDetails = sizeClass.height >= CardSizeClass.MEDIUM
     val iconSize = iconSizeFor(sizeClass)
 
@@ -108,6 +137,21 @@ fun CardState.VersionCardContent(cardId: String) {
                     currentVersion?.let(onOpenSettings)
                 }
             }
+            .clip(NeoCardShape)
+            .background(
+                Brush.linearGradient(
+                    colors = listOf(
+                        NeoGlassTop,
+                        NeoGlassBottom,
+                        Color(0xCC21112F)
+                    )
+                )
+            )
+            .border(
+                width = 1.dp,
+                brush = NeoAccentBrush,
+                shape = NeoCardShape
+            )
             .padding(12.dp)
     ) {
         when {
@@ -121,6 +165,7 @@ fun CardState.VersionCardContent(cardId: String) {
             ) {
                 if (version != null) TextLaunchButton(version)
             }
+
             sizeClass.width <= CardSizeClass.SMALL &&
                     sizeClass.height > CardSizeClass.SMALL -> TallContent(
                 card = card,
@@ -138,6 +183,7 @@ fun CardState.VersionCardContent(cardId: String) {
                     )
                 }
             }
+
             else -> RowContent(
                 card = card,
                 version = version,
@@ -152,10 +198,13 @@ fun CardState.VersionCardContent(cardId: String) {
 
 private fun iconSizeFor(sizeClass: CardSize): Dp {
     val cramped = sizeClass.height == CardSizeClass.COMPACT
+
     return when (sizeClass.width) {
         CardSizeClass.EXTRA_LARGE,
         CardSizeClass.LARGE -> if (cramped) 32.dp else 44.dp
+
         CardSizeClass.MEDIUM -> if (cramped) 28.dp else 36.dp
+
         else -> if (cramped) 24.dp else 28.dp
     }
 }
@@ -171,30 +220,51 @@ private fun lineHeightDp(style: TextStyle): Dp = with(LocalDensity.current) {
     style.lineHeight.takeOrElse { style.fontSize }.toDp()
 }
 
+private fun Modifier.neoVersionIcon(size: Dp): Modifier =
+    this
+        .size(size)
+        .clip(CardIconShape)
+        .border(
+            width = 1.2.dp,
+            brush = NeoAccentBrush,
+            shape = CardIconShape
+        )
+        .padding(2.dp)
+
 private fun Modifier.homeCardTap(onTap: () -> Unit): Modifier = pointerInput(Unit) {
     awaitEachGesture {
         val down = awaitFirstDown(requireUnconsumed = false)
+
         if (down.isConsumed) return@awaitEachGesture
+
         val startPosition = down.position
         val slopPx = viewConfiguration.touchSlop
         val longPressMillis = viewConfiguration.longPressTimeoutMillis
+
         val tapped = withTimeoutOrNull(longPressMillis) {
             while (true) {
                 val event = awaitPointerEvent()
                 val change = event.changes.firstOrNull { it.id == down.id } ?: continue
+
                 if ((change.position - startPosition).getDistance() > slopPx) {
                     return@withTimeoutOrNull false
                 }
-                if (!change.pressed) return@withTimeoutOrNull true
+
+                if (!change.pressed) {
+                    return@withTimeoutOrNull true
+                }
             }
-            @Suppress("UNREACHABLE_CODE") false
+
+            @Suppress("UNREACHABLE_CODE")
+            false
         } ?: false
+
         if (tapped) onTap()
     }
 }
 
 /**
- * 纵向布局
+ * Vertical layout.
  */
 @Composable
 private fun TallContent(
@@ -214,11 +284,10 @@ private fun TallContent(
                 .weight(1f)
                 .clipToBounds()
         ) {
-            //头行高度即图标高度（名称、信息行与状态标签不会超过图标），扣除后即图标下方的空白
             val blank = maxHeight - iconSize - DetailTopGap
             val summaryLine = lineHeightDp(MaterialTheme.typography.labelMedium)
             val summaryValid = version?.isSummaryValid() == true
-            //空白区文本：版本描述优先，缺失时由版本详细信息充当；达到高度门槛且放得下一行时显示
+
             val blankText = version
                 ?.takeIf {
                     spanHeight >= DESCRIPTION_START_SPAN &&
@@ -226,7 +295,7 @@ private fun TallContent(
                             (summaryValid || it.getVersionInfo() != null)
                 }
                 ?.getVersionSummary()
-            //描述行的行数与空白高度一致，未容纳的文本以省略号收尾
+
             val blankMaxLines = (blank.value / summaryLine.value).toInt()
 
             Column(modifier = Modifier.fillMaxSize()) {
@@ -234,33 +303,35 @@ private fun TallContent(
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     VersionIconImage(
-                        modifier = Modifier
-                            .size(iconSize)
-                            .clip(CardIconShape),
+                        modifier = Modifier.neoVersionIcon(iconSize),
                         version = version
                     )
+
                     Column(
                         modifier = Modifier.weight(1f),
                         verticalArrangement = Arrangement.spacedBy(DetailItemGap)
                     ) {
                         CardNameText(card = card, version = version)
-                        //信息位于名称下方；版本缺失描述时，信息自门槛起下移充当描述行，不再显示于此
+
                         if (showDetails && version != null && (summaryValid || blankText == null)) {
                             InfoRow(version = version)
                         }
+
                         when (card?.status) {
                             is VersionCardStatus.Deleted -> StatusPlaceholder(
                                 text = stringResource(R.string.home_version_card_deleted)
                             )
+
                             is VersionCardStatus.Inaccessible -> StatusPlaceholder(
                                 text = stringResource(R.string.home_version_card_inaccessible)
                             )
+
                             else -> Unit
                         }
                     }
                 }
+
                 if (blankText != null) {
-                    //描述行以高度权重填满头行下方的剩余空白，超出部分以省略号收尾
                     Text(
                         modifier = Modifier
                             .weight(1f)
@@ -268,12 +339,13 @@ private fun TallContent(
                         maxLines = blankMaxLines,
                         overflow = TextOverflow.Ellipsis,
                         text = blankText,
-                        style = MaterialTheme.typography.labelMedium
+                        style = MaterialTheme.typography.labelMedium,
+                        color = NeoMutedText
                     )
                 }
             }
         }
-        //按钮区占用固有高度，上方文本区加权，任何高度下都不会被挤压
+
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.End
@@ -283,34 +355,40 @@ private fun TallContent(
     }
 }
 
-/** 版本信息 */
+/** Version information */
 @Composable
 private fun InfoRow(version: Version) {
     val versionInfo = version.getVersionInfo()
+
     Row(
         modifier = Modifier
-            .alpha(0.7f)
+            .alpha(0.85f)
             .basicMarquee(iterations = Int.MAX_VALUE),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Text(
             text = versionInfo?.minecraftVersion ?: "",
-            style = MaterialTheme.typography.labelSmall
+            style = MaterialTheme.typography.labelSmall,
+            color = NeoBlue
         )
+
         versionInfo?.loaderInfos?.forEach { loaderInfo ->
             Text(
                 text = loaderInfo.loader.displayName,
-                style = MaterialTheme.typography.labelSmall
+                style = MaterialTheme.typography.labelSmall,
+                color = NeoMutedText
             )
+
             Text(
                 text = loaderInfo.version,
-                style = MaterialTheme.typography.labelSmall
+                style = MaterialTheme.typography.labelSmall,
+                color = NeoMutedText
             )
         }
     }
 }
 
-/** 版本名称 */
+/** Version name */
 @Composable
 private fun CardNameText(
     modifier: Modifier = Modifier,
@@ -324,13 +402,16 @@ private fun CardNameText(
                 .then(if (version == null) Modifier.alpha(0.55f) else Modifier),
             maxLines = 1,
             text = name,
-            style = MaterialTheme.typography.labelLarge
+            style = MaterialTheme.typography.labelLarge.copy(
+                fontWeight = FontWeight.Bold
+            ),
+            color = NeoText
         )
     }
 }
 
 /**
- * 横排布局
+ * Horizontal layout.
  */
 @Composable
 private fun RowContent(
@@ -347,17 +428,17 @@ private fun RowContent(
         verticalAlignment = Alignment.CenterVertically
     ) {
         VersionIconImage(
-            modifier = Modifier
-                .size(iconSize)
-                .clip(CardIconShape),
+            modifier = Modifier.neoVersionIcon(iconSize),
             version = version
         )
+
         CardTexts(
             modifier = Modifier.weight(1f),
             card = card,
             version = version,
             showDetails = showDetails
         )
+
         if (version != null) {
             if (textButton) {
                 TextLaunchButton(version)
@@ -368,7 +449,7 @@ private fun RowContent(
     }
 }
 
-/** 卡片文本区 */
+/** Version text area */
 @Composable
 private fun CardTexts(
     modifier: Modifier = Modifier,
@@ -384,89 +465,139 @@ private fun CardTexts(
 
         when (val status = card?.status) {
             is VersionCardStatus.Available -> if (showDetails) {
-                //版本详细信息
                 val versionInfo = status.version.getVersionInfo()
+
                 FlowRow(
-                    modifier = Modifier.alpha(0.7f),
+                    modifier = Modifier.alpha(0.85f),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalArrangement = Arrangement.spacedBy(DetailItemGap)
                 ) {
                     Text(
                         text = versionInfo?.minecraftVersion ?: "",
-                        style = MaterialTheme.typography.labelSmall
+                        style = MaterialTheme.typography.labelSmall,
+                        color = NeoBlue
                     )
+
                     versionInfo?.loaderInfos?.forEach { loaderInfo ->
                         Text(
                             text = loaderInfo.loader.displayName,
-                            style = MaterialTheme.typography.labelSmall
+                            style = MaterialTheme.typography.labelSmall,
+                            color = NeoMutedText
                         )
+
                         Text(
                             text = loaderInfo.version,
-                            style = MaterialTheme.typography.labelSmall
+                            style = MaterialTheme.typography.labelSmall,
+                            color = NeoMutedText
                         )
                     }
                 }
             }
-            //占位状态标签不受尺寸门槛限制，任何形态都需要提示原因
+
             is VersionCardStatus.Deleted -> StatusPlaceholder(
                 text = stringResource(R.string.home_version_card_deleted)
             )
+
             is VersionCardStatus.Inaccessible -> StatusPlaceholder(
                 text = stringResource(R.string.home_version_card_inaccessible)
             )
+
             null, VersionCardStatus.Loading -> Unit
         }
     }
 }
 
-/** 带文字的启动按钮 */
+/** Main launch button */
 @Composable
-private fun TextLaunchButton(version: Version, modifier: Modifier = Modifier) {
+private fun TextLaunchButton(
+    version: Version,
+    modifier: Modifier = Modifier
+) {
     val onLaunch = LocalHomeCardLauncher.current
-    Button(onClick = { onLaunch(version) }, modifier = modifier) {
+
+    Button(
+        onClick = { onLaunch(version) },
+        modifier = modifier,
+        shape = NeoButtonShape,
+        colors = ButtonDefaults.buttonColors(
+            containerColor = NeoPurple,
+            contentColor = Color.White
+        ),
+        contentPadding = PaddingValues(
+            horizontal = 16.dp,
+            vertical = 10.dp
+        )
+    ) {
         Icon(
-            modifier = Modifier.size(16.dp),
+            modifier = Modifier.size(17.dp),
             painter = painterResource(R.drawable.ic_play_arrow_filled),
             contentDescription = null
         )
+
         Text(
             modifier = Modifier.padding(start = 6.dp),
-            text = stringResource(R.string.main_launch_game)
+            text = stringResource(R.string.main_launch_game),
+            fontWeight = FontWeight.Bold
         )
     }
 }
 
-/** 通栏紧凑启动按钮 */
+/** Compact launch button */
 @Composable
-private fun CompactLaunchButton(version: Version, modifier: Modifier = Modifier) {
+private fun CompactLaunchButton(
+    version: Version,
+    modifier: Modifier = Modifier
+) {
     val onLaunch = LocalHomeCardLauncher.current
+
     Button(
         onClick = { onLaunch(version) },
         modifier = modifier,
-        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+        shape = NeoButtonShape,
+        colors = ButtonDefaults.buttonColors(
+            containerColor = NeoPurple,
+            contentColor = Color.White
+        ),
+        contentPadding = PaddingValues(
+            horizontal = 8.dp,
+            vertical = 2.dp
+        )
     ) {
         Icon(
             modifier = Modifier.size(14.dp),
             painter = painterResource(R.drawable.ic_play_arrow_filled),
             contentDescription = null
         )
+
         Text(
             modifier = Modifier.padding(start = 4.dp),
             text = stringResource(R.string.main_launch_game),
-            style = MaterialTheme.typography.labelSmall
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Bold
         )
     }
 }
 
-/** 仅图标的圆形启动按钮 */
+/** Icon-only circular launch button */
 @Composable
-private fun IconLaunchButton(version: Version, modifier: Modifier = Modifier) {
+private fun IconLaunchButton(
+    version: Version,
+    modifier: Modifier = Modifier
+) {
     val onLaunch = LocalHomeCardLauncher.current
+
     Button(
         onClick = { onLaunch(version) },
         modifier = modifier,
         shape = CircleShape,
-        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+        colors = ButtonDefaults.buttonColors(
+            containerColor = NeoPurple,
+            contentColor = Color.White
+        ),
+        contentPadding = PaddingValues(
+            horizontal = 8.dp,
+            vertical = 2.dp
+        )
     ) {
         Icon(
             modifier = Modifier.size(14.dp),
